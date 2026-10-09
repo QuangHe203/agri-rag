@@ -1,0 +1,32 @@
+version: "3.9"
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-flash-latest}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-AITeamVN/Vietnamese_Embedding}
+      - EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-cpu}
+      - CHUNK_SIZE=${CHUNK_SIZE:-800}
+      - CHUNK_OVERLAP=${CHUNK_OVERLAP:-120}
+      - DEFAULT_TOP_K=${DEFAULT_TOP_K:-5}
+      - MAX_TOP_K=${MAX_TOP_K:-10}
+      - MIN_RELEVANCE_SCORE=${MIN_RELEVANCE_SCORE:-0.45}
+      - MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB:-50}
+      - MAX_QUESTION_LENGTH=${MAX_QUESTION_LENGTH:-2000}
+      - UPLOAD_DIR=/app/data/uploads
+      - VECTOR_DB_PATH=/app/data/vector_db
+      - SQLITE_DB_PATH=/app/data/documents.db
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s

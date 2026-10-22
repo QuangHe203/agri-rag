@@ -23,12 +23,6 @@ venv/
 env/
 ENV/
 
-# ── Testing ───────────────────────────────────────────────────────────────────
-.pytest_cache/
-.coverage
-htmlcov/
-*.xml
-
 # ── Data (runtime) ───────────────────────────────────────────────────────────
 data/uploads/*
 !data/uploads/.gitkeep

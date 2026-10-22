@@ -138,23 +138,6 @@ python scripts/ingest_documents.py doc1.pdf doc2.pdf
 
 ---
 
-## Chạy tests
-
-```bash
-# Unit tests
-pytest tests/unit/ -v
-
-# Integration tests
-pytest tests/integration/ -v
-
-# Tất cả
-pytest -v
-```
-
-> **Lưu ý:** Unit tests và integration tests đều mock embedding model và LLM. Không cần API key thật để chạy tests.
-
----
-
 ## Re-index khi đổi embedding model
 
 Nếu bạn thay đổi `EMBEDDING_MODEL` trong `.env`, toàn bộ tài liệu phải được index lại:
@@ -217,9 +200,6 @@ agriculture-rag/
 │   └── prompts/
 │       └── agriculture_qa.py     # System + user prompt templates
 ├── data/                         # Runtime data (gitignored)
-├── tests/
-│   ├── unit/                     # Unit tests (no external calls)
-│   └── integration/              # Integration tests (mock API calls)
 ├── scripts/
 │   └── ingest_documents.py       # Batch PDF ingestion script
 ├── .env.example

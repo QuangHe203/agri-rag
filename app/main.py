@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.dependencies import request_id_middleware
-from app.api.routes import documents, health, query
+from app.api.routes import documents, health, images, metrics, query
 from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import setup_logging
@@ -45,12 +45,32 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("Could not pre-initialize vector store: %s", exc)
 
-    # Ensure SQLite DB / tables exist
+    # Ensure SQLite DB / tables exist.
+    # Import app.models.image first so PageImageModel is registered with
+    # Base.metadata before create_all() is called inside get_engine().
     try:
+        import app.models.image  # noqa: F401 — registers PageImageModel with Base
         from app.models.document import get_engine
         get_engine()
     except Exception as exc:
         logger.warning("Could not initialize SQLite: %s", exc)
+
+    # Pre-load reranker model (if enabled) so first query is not slow
+    if settings.RERANK_ENABLED:
+        try:
+            from app.providers.reranker.vietnamese_reranker import get_reranker
+            get_reranker()
+        except Exception as exc:
+            logger.warning("Could not pre-load reranker model: %s", exc)
+
+    # Warm up BM25 index from disk (if hybrid search is enabled)
+    if settings.HYBRID_SEARCH_ENABLED:
+        try:
+            from app.providers.retrieval.bm25 import get_bm25_index
+            idx = get_bm25_index()
+            logger.info("BM25 index ready: %d entries", idx.count())
+        except Exception as exc:
+            logger.warning("Could not initialize BM25 index: %s", exc)
 
     logger.info("Agriculture RAG backend ready")
     yield
@@ -89,8 +109,10 @@ def create_app() -> FastAPI:
 
     # Routers
     app.include_router(health.router)
+    app.include_router(metrics.router)
     app.include_router(documents.router)
     app.include_router(query.router)
+    app.include_router(images.router)
 
     return app
 

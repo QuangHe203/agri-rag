@@ -5,9 +5,27 @@ import time
 from app.core.config import get_settings
 from app.core.exceptions import LLMConfigurationError, LLMRateLimitedError, LLMRequestFailedError
 from app.core.logging import get_logger
+from app.core.metrics import LLM_CALL_DURATION, LLM_CALLS, record_tokens
 from app.providers.llm.base import LLMProvider
 
 logger = get_logger(__name__)
+
+_PROVIDER = "gemini"
+
+
+def _record_usage(response) -> None:
+    """Extract token usage from a LangChain response and feed the counters.
+
+    ``usage_metadata`` is the normalised LangChain field; fall back to the
+    raw ``response_metadata`` when the model/SDK does not populate it.
+    """
+    usage = getattr(response, "usage_metadata", None) or {}
+    prompt = int(usage.get("input_tokens", 0) or 0)
+    completion = int(usage.get("output_tokens", 0) or 0)
+    total = int(usage.get("total_tokens", 0) or 0)
+    if not (prompt or completion or total):
+        return
+    record_tokens(_PROVIDER, prompt=prompt, completion=completion, total=total)
 
 
 class GeminiProvider(LLMProvider):
@@ -50,16 +68,22 @@ class GeminiProvider(LLMProvider):
         try:
             response = client.invoke(messages)
             elapsed = time.time() - start
+            LLM_CALL_DURATION.labels(provider=_PROVIDER).observe(elapsed)
+            LLM_CALLS.labels(provider=_PROVIDER, status="success").inc()
+            _record_usage(response)
             logger.info("LLM response received in %.2fs", elapsed)
             return response.content
         except Exception as exc:
             elapsed = time.time() - start
+            LLM_CALL_DURATION.labels(provider=_PROVIDER).observe(elapsed)
             err_str = str(exc).lower()
             logger.error("LLM call failed after %.2fs: %s", elapsed, type(exc).__name__)
             if "rate" in err_str or "quota" in err_str or "429" in err_str:
+                LLM_CALLS.labels(provider=_PROVIDER, status="rate_limited").inc()
                 raise LLMRateLimitedError(
                     "Gemini API tạm thời bị giới hạn. Vui lòng thử lại sau."
                 ) from exc
+            LLM_CALLS.labels(provider=_PROVIDER, status="error").inc()
             raise LLMRequestFailedError(
                 "Không thể kết nối tới dịch vụ LLM. Vui lòng thử lại sau."
             ) from exc

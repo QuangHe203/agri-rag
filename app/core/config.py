@@ -37,11 +37,37 @@ class Settings(BaseSettings):
     MAX_TOP_K: int = 10
     MIN_RELEVANCE_SCORE: float = 0.45
 
+    # Reranking (10.1)
+    RERANK_ENABLED: bool = False
+    RERANKER_MODEL: str = "BAAI/bge-reranker-v2-m3"
+    RERANK_CANDIDATE_MULTIPLIER: int = 4   # fetch k*N candidates before reranking
+    RERANK_MIN_SCORE: float = 0.0          # cross-encoder threshold (logit scale)
+
+    # Hybrid search — BM25 + Vector (10.3)
+    HYBRID_SEARCH_ENABLED: bool = False
+    HYBRID_CANDIDATE_MULTIPLIER: int = 4   # fetch k*N candidates from each leg
+    BM25_INDEX_PATH: str = "./data/bm25_index.pkl"
+
+    # Query transformation — Query Rewrite / Multi-query / HyDE (10.4)
+    # These run BEFORE retrieval and use the LLM. All default OFF so the
+    # baseline pipeline is unchanged. When enabled, the extra query variants
+    # (and/or HyDE documents) are fused with Reciprocal Rank Fusion.
+    QUERY_REWRITE_ENABLED: bool = False    # rewrite the question into one cleaner search query
+    MULTI_QUERY_ENABLED: bool = False      # generate several alternative phrasings
+    MULTI_QUERY_COUNT: int = 3             # number of extra variants (excludes the base question)
+    HYDE_ENABLED: bool = False             # embed a hypothetical answer passage for the dense leg
+    QUERY_TRANSFORM_CANDIDATE_MULTIPLIER: int = 4  # fetch k*N candidates per query/leg before fusion
+
     # LLM
     LLM_PROVIDER: str = "gemini"
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-flash-latest"
     LLM_TEMPERATURE: float = 0.1
+
+    # Image extraction (response enrichment)
+    IMAGE_EXTRACTION_ENABLED: bool = True
+    IMAGE_STORE_PATH: str = "./data/images"
+    MAX_IMAGES_PER_RESPONSE: int = 3
 
     # Upload limits
     MAX_UPLOAD_SIZE_MB: int = 50

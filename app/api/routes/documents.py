@@ -212,9 +212,28 @@ async def delete_document(document_id: str):
     try:
         doc = doc_service.get_by_id(document_id)  # raises 404 if not found
 
-        # Delete vectors
+        # Delete vectors from ChromaDB
         vector_store = get_vector_store()
         vector_store.delete_by_document_id(document_id)
+
+        # Delete from BM25 index (no-op when hybrid search is disabled)
+        settings2 = get_settings()
+        if settings2.HYBRID_SEARCH_ENABLED:
+            try:
+                from app.providers.retrieval.bm25 import get_bm25_index
+                get_bm25_index().delete_by_document_id(document_id)
+            except Exception as bm25_exc:
+                logger.warning("BM25 delete failed for %s: %s", document_id, bm25_exc)
+
+        # Delete extracted images (DB rows + disk files) — non-blocking
+        try:
+            from app.services.image_service import delete_images_for_document
+            delete_images_for_document(
+                document_id=document_id,
+                image_store_path=settings.IMAGE_STORE_PATH,
+            )
+        except Exception as img_exc:
+            logger.warning("Image cleanup failed for %s: %s", document_id, img_exc)
 
         # Delete uploaded file
         upload_dir = Path(settings.UPLOAD_DIR)

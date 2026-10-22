@@ -1,0 +1,25 @@
+{
+  "description": "Golden Q&A set for RAGAS evaluation of the Agriculture RAG system. PLACEHOLDER — replace the examples below with real questions, ground-truth answers grounded in your indexed PDFs. Aim for 50–100 pairs for a stable score. `ground_truth` is the reference (ideal) answer; `contexts` is optional and only used if you want to evaluate generation without running retrieval.",
+  "samples": [
+    {
+      "question": "Bệnh đạo ôn trên lúa do tác nhân nào gây ra?",
+      "ground_truth": "Bệnh đạo ôn trên lúa do nấm Pyricularia oryzae (Magnaporthe oryzae) gây ra."
+    },
+    {
+      "question": "Nên bón phân đạm cho lúa vào những giai đoạn nào?",
+      "ground_truth": "Bón đạm cho lúa chủ yếu vào 3 giai đoạn: bón lót trước khi cấy, bón thúc đẻ nhánh và bón đón đòng."
+    },
+    {
+      "question": "Thời điểm thích hợp để thu hoạch lúa là khi nào?",
+      "ground_truth": "Nên thu hoạch khi khoảng 85–90% số hạt trên bông đã chín vàng để đạt năng suất và chất lượng gạo tốt nhất."
+    },
+    {
+      "question": "Làm thế nào để phòng trừ sâu cuốn lá nhỏ hại lúa?",
+      "ground_truth": "Phòng trừ sâu cuốn lá nhỏ bằng biện pháp canh tác (gieo cấy đúng thời vụ, bón phân cân đối), theo dõi mật độ sâu và chỉ phun thuốc đặc hiệu khi sâu non tuổi nhỏ vượt ngưỡng."
+    },
+    {
+      "question": "Khoảng cách trồng phù hợp cho cây ngô là bao nhiêu?",
+      "ground_truth": "Khoảng cách trồng ngô phổ biến là hàng cách hàng 60–70 cm và cây cách cây 25–30 cm, tùy giống và độ phì của đất."
+    }
+  ]
+}

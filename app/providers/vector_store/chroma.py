@@ -155,6 +155,18 @@ class ChromaVectorStore:
         retrieval_results.sort(key=lambda r: r.score, reverse=True)
         return retrieval_results
 
+    def delete_by_ids(self, ids: List[str]) -> int:
+        """Delete chunks by their exact chunk_ids.  Returns number of deleted items."""
+        if not ids:
+            return 0
+        try:
+            self._collection.delete(ids=ids)
+            logger.info("Deleted %d vectors by id", len(ids))
+            return len(ids)
+        except Exception as exc:
+            logger.error("Failed to delete vectors by id: %s", exc)
+            raise VectorStoreUnavailableError("Không thể xóa vector từ database.") from exc
+
     def delete_by_document_id(self, document_id: str) -> int:
         """Delete all vectors belonging to a document. Returns the number of deleted items."""
         try:

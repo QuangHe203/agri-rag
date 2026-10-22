@@ -38,3 +38,37 @@ class QueryResponse(BaseModel):
     answer: str
     sources: List[SourceReference]
     model: str
+
+
+# ---------------------------------------------------------------------------
+# Image enrichment types (added as independent layer — QueryResponse unchanged)
+# ---------------------------------------------------------------------------
+
+class ImageReference(BaseModel):
+    """A single illustration image extracted from a source PDF page."""
+
+    document_id: str
+    file_name: str = Field(description="Source PDF file name")
+    page: int = Field(description="1-based page number inside the source PDF")
+    image_index: int = Field(description="0-based image index within the page")
+    url: str = Field(
+        description="API path to fetch the image: GET /api/v1/images/{document_id}/{page}/{image_index}"
+    )
+    width: Optional[int] = None
+    height: Optional[int] = None
+    mime_type: str = "image/png"
+
+
+class EnrichedQueryResponse(QueryResponse):
+    """QueryResponse extended with optional illustration images.
+
+    This schema is a strict superset of :class:`QueryResponse`: all existing
+    fields are unchanged and ``images`` defaults to an empty list so that
+    clients not yet aware of images receive a valid response.
+    """
+
+    images: List[ImageReference] = Field(
+        default_factory=list,
+        description="Illustration images from the source pages most relevant to the answer. "
+        "Empty when no images are available or when image extraction is disabled.",
+    )

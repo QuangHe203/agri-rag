@@ -1,5 +1,7 @@
 """Health check endpoint."""
 
+from typing import Optional
+
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -13,6 +15,8 @@ class ComponentStatus(BaseModel):
     vector_store: str
     embedding_model: str
     llm: str
+    reranker: Optional[str] = None    # "loaded" | "not_loaded" | "disabled"
+    bm25_index: Optional[str] = None  # "loaded:{n}" | "disabled"
 
 
 class HealthResponse(BaseModel):
@@ -29,7 +33,7 @@ class HealthResponse(BaseModel):
 async def health_check() -> HealthResponse:
     """
     Lightweight health check.
-    Does NOT make a real LLM call — only verifies configuration and vector store connectivity.
+    Does NOT make a real LLM call — only verifies configuration and connectivity.
     """
     from app.core.config import get_settings
 
@@ -49,11 +53,27 @@ async def health_check() -> HealthResponse:
     # LLM — only check configuration, do not call the API
     llm_status = "configured" if settings.GEMINI_API_KEY else "not_configured"
 
-    overall = (
-        "healthy"
-        if vector_store_status == "up"
-        else "degraded"
-    )
+    # Reranker
+    reranker_status: Optional[str] = None
+    if settings.RERANK_ENABLED:
+        from app.providers.reranker.vietnamese_reranker import is_reranker_loaded
+        reranker_status = "loaded" if is_reranker_loaded() else "not_loaded"
+    else:
+        reranker_status = "disabled"
+
+    # BM25 index
+    bm25_status: Optional[str] = None
+    if settings.HYBRID_SEARCH_ENABLED:
+        try:
+            from app.providers.retrieval.bm25 import get_bm25_index
+            n = get_bm25_index().count()
+            bm25_status = f"loaded:{n}"
+        except Exception:
+            bm25_status = "error"
+    else:
+        bm25_status = "disabled"
+
+    overall = "healthy" if vector_store_status == "up" else "degraded"
 
     return HealthResponse(
         status=overall,
@@ -61,5 +81,7 @@ async def health_check() -> HealthResponse:
             vector_store=vector_store_status,
             embedding_model=embedding_status,
             llm=llm_status,
+            reranker=reranker_status,
+            bm25_index=bm25_status,
         ),
     )

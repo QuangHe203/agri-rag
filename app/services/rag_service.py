@@ -1,9 +1,16 @@
 """RAG service: orchestrates retrieval + LLM generation."""
 
+from time import perf_counter
 from typing import List, Optional
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.core.metrics import (
+    RAG_REQUEST_DURATION,
+    RAG_REQUESTS,
+    RETRIEVED_CHUNKS,
+    observe_stage,
+)
 from app.prompts.agriculture_qa import (
     FALLBACK_ANSWER,
     SYSTEM_PROMPT,
@@ -50,47 +57,58 @@ class RAGService:
           3. Build context and call LLM.
           4. Return answer + sources.
         """
-        # 1. Retrieve
-        results: List[RetrievalResult] = self._retrieval.retrieve(
-            question=question, top_k=top_k
-        )
+        start = perf_counter()
+        try:
+            # 1. Retrieve
+            with observe_stage("retrieval"):
+                results: List[RetrievalResult] = self._retrieval.retrieve(
+                    question=question, top_k=top_k
+                )
+            RETRIEVED_CHUNKS.observe(len(results))
 
-        # 2. Fallback when no relevant context found
-        if not results:
-            logger.info("No relevant context found for question. Returning fallback.")
-            settings = get_settings()
-            provider_name = settings.GEMINI_MODEL if settings.LLM_PROVIDER == "gemini" else settings.LLM_PROVIDER
+            # 2. Fallback when no relevant context found
+            if not results:
+                logger.info("No relevant context found for question. Returning fallback.")
+                RAG_REQUESTS.labels(result="fallback").inc()
+                settings = get_settings()
+                provider_name = settings.GEMINI_MODEL if settings.LLM_PROVIDER == "gemini" else settings.LLM_PROVIDER
+                return QueryResponse(
+                    question=question,
+                    answer=FALLBACK_ANSWER,
+                    sources=[],
+                    model=provider_name,
+                )
+
+            # 3. Build context and prompt
+            context = build_context_block(results)
+            user_prompt = build_user_prompt(context=context, question=question)
+
+            # 4. Call LLM
+            llm = self._ensure_llm()
+            answer_text = llm.generate(system_prompt=SYSTEM_PROMPT, user_prompt=user_prompt)
+
+            # 5. Build source references, sorted by score descending
+            sources = [
+                SourceReference(
+                    document_id=r.metadata.get("document_id", ""),
+                    file_name=r.metadata.get("file_name", ""),
+                    page=r.metadata.get("page"),
+                    chunk_id=r.chunk_id,
+                    score=round(r.score, 4),
+                    excerpt=r.content[:300],
+                )
+                for r in sorted(results, key=lambda r: r.score, reverse=True)
+            ]
+
+            RAG_REQUESTS.labels(result="answered").inc()
             return QueryResponse(
                 question=question,
-                answer=FALLBACK_ANSWER,
-                sources=[],
-                model=provider_name,
+                answer=answer_text,
+                sources=sources,
+                model=llm.model_name,
             )
-
-        # 3. Build context and prompt
-        context = build_context_block(results)
-        user_prompt = build_user_prompt(context=context, question=question)
-
-        # 4. Call LLM
-        llm = self._ensure_llm()
-        answer_text = llm.generate(system_prompt=SYSTEM_PROMPT, user_prompt=user_prompt)
-
-        # 5. Build source references
-        sources = [
-            SourceReference(
-                document_id=r.metadata.get("document_id", ""),
-                file_name=r.metadata.get("file_name", ""),
-                page=r.metadata.get("page"),
-                chunk_id=r.chunk_id,
-                score=round(r.score, 4),
-                excerpt=r.content[:300],
-            )
-            for r in results
-        ]
-
-        return QueryResponse(
-            question=question,
-            answer=answer_text,
-            sources=sources,
-            model=llm.model_name,
-        )
+        except Exception:
+            RAG_REQUESTS.labels(result="error").inc()
+            raise
+        finally:
+            RAG_REQUEST_DURATION.observe(perf_counter() - start)

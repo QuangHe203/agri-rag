@@ -18,6 +18,14 @@ from app.providers.pdf.opendataloader_parser import ParsedPage, PDFParseResult, 
 from app.providers.vector_store.chroma import ChunkDocument, ChromaVectorStore, get_vector_store
 from app.services.document_service import DocumentService
 
+# BM25 index — only imported when hybrid search is enabled to avoid hard dependency
+def _get_bm25_if_enabled():
+    from app.core.config import get_settings
+    if get_settings().HYBRID_SEARCH_ENABLED:
+        from app.providers.retrieval.bm25 import get_bm25_index, BM25Entry
+        return get_bm25_index(), BM25Entry
+    return None, None
+
 logger = get_logger(__name__)
 
 
@@ -107,6 +115,26 @@ def ingest_document(document_id: str, file_path: str, file_name: str) -> None:
         logger.info("Parsed %d pages for document_id=%s", parse_result.page_count, document_id)
         doc_service.update_status(document_id, status="processing", page_count=parse_result.page_count)
 
+        # 1b. Extract images (independent enrichment layer – failure never aborts ingestion)
+        try:
+            if settings.IMAGE_EXTRACTION_ENABLED:
+                from app.providers.image.pdf_image_extractor import extract_images
+                from app.services.image_service import store_images
+                extracted_images = extract_images(
+                    file_path=file_path,
+                    document_id=document_id,
+                    file_name=file_name,
+                    image_store_path=settings.IMAGE_STORE_PATH,
+                )
+                if extracted_images:
+                    store_images(extracted_images)
+        except Exception as img_exc:
+            logger.warning(
+                "Image extraction step failed for document_id=%s (ingestion continues): %s",
+                document_id,
+                img_exc,
+            )
+
         # 2. Chunk
         uploaded_at = datetime.now(timezone.utc).isoformat()
         chunks = _chunk_pages(
@@ -142,6 +170,21 @@ def ingest_document(document_id: str, file_path: str, file_name: str) -> None:
         # 4. Index into vector store
         vector_store.add_chunks(chunks)
 
+        # 4b. Index into BM25 (when hybrid search is enabled)
+        bm25_index, BM25Entry = _get_bm25_if_enabled()
+        if bm25_index is not None:
+            bm25_entries = [
+                BM25Entry(
+                    chunk_id=c.chunk_id,
+                    document_id=document_id,
+                    content=c.content,
+                    metadata=c.metadata,
+                )
+                for c in chunks
+            ]
+            bm25_index.add_chunks(bm25_entries)
+            logger.info("BM25 indexed %d chunks for document_id=%s", len(bm25_entries), document_id)
+
         # 5. Mark as indexed
         doc_service.update_status(
             document_id,
@@ -159,17 +202,24 @@ def ingest_document(document_id: str, file_path: str, file_name: str) -> None:
 
     except Exception as exc:
         logger.exception("Ingestion failed for document_id=%s", document_id)
-        # Rollback: remove any vectors already written
+        # Rollback: remove any vectors already written (using public API)
         if ingested_chunk_ids:
             try:
-                vector_store._collection.delete(ids=ingested_chunk_ids)
+                vector_store.delete_by_ids(ingested_chunk_ids)
                 logger.info(
                     "Rolled back %d vectors for document_id=%s",
                     len(ingested_chunk_ids),
                     document_id,
                 )
             except Exception as rollback_exc:
-                logger.error("Rollback failed: %s", rollback_exc)
+                logger.error("Vector rollback failed: %s", rollback_exc)
+            # Also rollback BM25 if it was updated
+            try:
+                bm25_index_rb, _ = _get_bm25_if_enabled()
+                if bm25_index_rb is not None:
+                    bm25_index_rb.delete_by_ids(ingested_chunk_ids)
+            except Exception as bm25_rollback_exc:
+                logger.error("BM25 rollback failed: %s", bm25_rollback_exc)
         try:
             doc_service.update_status(
                 document_id,

@@ -1,7 +1,12 @@
 """Query (ask) endpoint."""
 
-from fastapi import APIRouter
+import asyncio
+from time import perf_counter
 
+from fastapi import APIRouter
+from starlette.concurrency import run_in_threadpool
+
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.schemas.query import EnrichedQueryResponse, QueryRequest
 from app.services.image_enricher import enrich_response
@@ -11,6 +16,7 @@ router = APIRouter(prefix="/api/v1", tags=["Query"])
 logger = get_logger(__name__)
 
 _rag_service: RAGService | None = None
+_query_semaphore = asyncio.Semaphore(get_settings().QUERY_MAX_CONCURRENCY)
 
 
 def _get_rag_service() -> RAGService:
@@ -42,6 +48,31 @@ async def query(request: QueryRequest) -> EnrichedQueryResponse:
         len(request.question),
         request.top_k,
     )
+    request_start = perf_counter()
+    queue_wait = 0.0
+    outcome = "error"
+    try:
+        async with _query_semaphore:
+            processing_start = perf_counter()
+            queue_wait = processing_start - request_start
+            response = await run_in_threadpool(
+                _answer_query, request.question, request.top_k
+            )
+            outcome = "success"
+            return response
+    except Exception:
+        logger.exception("Query processing failed")
+        raise
+    finally:
+        logger.info(
+            "Query finished: outcome=%s queue_wait=%.2fs total=%.2fs",
+            outcome,
+            queue_wait,
+            perf_counter() - request_start,
+        )
+
+
+def _answer_query(question: str, top_k: int) -> EnrichedQueryResponse:
     rag = _get_rag_service()
-    rag_response = rag.answer(question=request.question, top_k=request.top_k)
+    rag_response = rag.answer(question=question, top_k=top_k)
     return enrich_response(rag_response)

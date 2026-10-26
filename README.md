@@ -164,6 +164,24 @@ docker run -p 8000:8000 \
   agriculture-rag
 ```
 
+### Theo dõi query chậm hoặc 502
+
+- Query chạy trong thread pool; mặc định chỉ xử lý đồng thời một query mỗi process
+  (`QUERY_MAX_CONCURRENCY=1`) để hạn chế tranh chấp CPU/RAM với model local. Chỉ tăng
+  sau khi load-test trên cấu hình triển khai thực tế.
+- Gemini có timeout mặc định 60 giây và một lần retry
+  (`GEMINI_TIMEOUT_SECONDS`, `GEMINI_MAX_RETRIES`). Một lời gọi có thể mất khoảng
+  `(số lần retry + 1) × timeout`; đặt timeout của gateway cao hơn tổng thời gian
+  retrieval, generation và enrichment, hoặc giảm timeout/retry cho phù hợp.
+- Log query có request ID, thời gian chờ slot và tổng thời gian; log LLM có thời
+  lượng và traceback nguyên nhân. Dùng `/metrics` để xem thời lượng RAG/LLM; trên
+  Docker Linux, kiểm tra thêm RSS/container memory, restart và OOM bằng log/metrics
+  của nền tảng hoặc `docker stats`/`docker events`.
+- Để xác định nguồn 502, gửi cùng một request trực tiếp tới origin và qua ingress;
+  đối chiếu status, `Content-Type`, body, `X-Request-ID`, thời điểm và log origin.
+  JSON `error.code=LLM_REQUEST_FAILED` cho biết ứng dụng ánh xạ lỗi provider thành
+  502, nhưng gateway vẫn có thể chuyển tiếp response đó.
+
 ---
 
 ## Cấu trúc project

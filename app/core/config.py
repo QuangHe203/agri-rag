@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -63,6 +64,13 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-flash-latest"
     LLM_TEMPERATURE: float = 0.1
+    GEMINI_TIMEOUT_SECONDS: float = Field(default=60.0, gt=0)
+    GEMINI_MAX_RETRIES: int = Field(default=1, ge=0)
+
+    # Query execution
+    # Keep this low for local CPU inference; raise only after load-testing RAM
+    # and verifying concurrent use of the shared embedding/vector-store clients.
+    QUERY_MAX_CONCURRENCY: int = Field(default=1, ge=1)
 
     # Image extraction (response enrichment)
     IMAGE_EXTRACTION_ENABLED: bool = True

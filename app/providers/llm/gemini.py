@@ -28,6 +28,23 @@ def _record_usage(response) -> None:
     record_tokens(_PROVIDER, prompt=prompt, completion=completion, total=total)
 
 
+def _extract_text_content(content: object) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        text_parts = []
+        for part in content:
+            if isinstance(part, str):
+                text_parts.append(part)
+            elif isinstance(part, dict):
+                text = part.get("text")
+                if isinstance(text, str):
+                    text_parts.append(text)
+        if text_parts:
+            return "".join(text_parts)
+    raise ValueError("Gemini returned no textual response content.")
+
+
 class GeminiProvider(LLMProvider):
     """LLM provider backed by Google Gemini via langchain-google-genai."""
 
@@ -39,6 +56,8 @@ class GeminiProvider(LLMProvider):
             )
         self._model_name = settings.GEMINI_MODEL
         self._temperature = settings.LLM_TEMPERATURE
+        self._timeout_seconds = settings.GEMINI_TIMEOUT_SECONDS
+        self._max_retries = settings.GEMINI_MAX_RETRIES
         self._api_key = settings.GEMINI_API_KEY
         self._client = None
 
@@ -50,8 +69,15 @@ class GeminiProvider(LLMProvider):
                 model=self._model_name,
                 google_api_key=self._api_key,
                 temperature=self._temperature,
+                timeout=self._timeout_seconds,
+                max_retries=self._max_retries,
             )
-            logger.info("Gemini client initialized: model=%s", self._model_name)
+            logger.info(
+                "Gemini client initialized: model=%s timeout=%.1fs max_retries=%d",
+                self._model_name,
+                self._timeout_seconds,
+                self._max_retries,
+            )
         return self._client
 
     def generate(self, system_prompt: str, user_prompt: str) -> str:
@@ -67,17 +93,22 @@ class GeminiProvider(LLMProvider):
         logger.info("Calling LLM provider=gemini model=%s", self._model_name)
         try:
             response = client.invoke(messages)
+            answer = _extract_text_content(response.content)
             elapsed = time.time() - start
             LLM_CALL_DURATION.labels(provider=_PROVIDER).observe(elapsed)
             LLM_CALLS.labels(provider=_PROVIDER, status="success").inc()
             _record_usage(response)
             logger.info("LLM response received in %.2fs", elapsed)
-            return response.content
+            return answer
         except Exception as exc:
             elapsed = time.time() - start
             LLM_CALL_DURATION.labels(provider=_PROVIDER).observe(elapsed)
             err_str = str(exc).lower()
-            logger.error("LLM call failed after %.2fs: %s", elapsed, type(exc).__name__)
+            logger.exception(
+                "LLM call failed after %.2fs: %s",
+                elapsed,
+                type(exc).__name__,
+            )
             if "rate" in err_str or "quota" in err_str or "429" in err_str:
                 LLM_CALLS.labels(provider=_PROVIDER, status="rate_limited").inc()
                 raise LLMRateLimitedError(

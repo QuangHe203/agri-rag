@@ -6,7 +6,7 @@ from app.core.config import get_settings
 from app.core.exceptions import LLMConfigurationError, LLMRateLimitedError, LLMRequestFailedError
 from app.core.logging import get_logger
 from app.core.metrics import LLM_CALL_DURATION, LLM_CALLS, record_tokens
-from app.providers.llm.base import LLMProvider
+from app.providers.llm.base import LLMProvider, extract_text_content
 
 logger = get_logger(__name__)
 
@@ -26,23 +26,6 @@ def _record_usage(response) -> None:
     if not (prompt or completion or total):
         return
     record_tokens(_PROVIDER, prompt=prompt, completion=completion, total=total)
-
-
-def _extract_text_content(content: object) -> str:
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        text_parts = []
-        for part in content:
-            if isinstance(part, str):
-                text_parts.append(part)
-            elif isinstance(part, dict):
-                text = part.get("text")
-                if isinstance(text, str):
-                    text_parts.append(text)
-        if text_parts:
-            return "".join(text_parts)
-    raise ValueError("Gemini returned no textual response content.")
 
 
 class GeminiProvider(LLMProvider):
@@ -71,6 +54,7 @@ class GeminiProvider(LLMProvider):
                 temperature=self._temperature,
                 timeout=self._timeout_seconds,
                 max_retries=self._max_retries,
+                thinking_level="low",
             )
             logger.info(
                 "Gemini client initialized: model=%s timeout=%.1fs max_retries=%d",
@@ -93,7 +77,7 @@ class GeminiProvider(LLMProvider):
         logger.info("Calling LLM provider=gemini model=%s", self._model_name)
         try:
             response = client.invoke(messages)
-            answer = _extract_text_content(response.content)
+            answer = extract_text_content(response.content)
             elapsed = time.time() - start
             LLM_CALL_DURATION.labels(provider=_PROVIDER).observe(elapsed)
             LLM_CALLS.labels(provider=_PROVIDER, status="success").inc()

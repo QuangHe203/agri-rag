@@ -17,7 +17,7 @@ from app.prompts.agriculture_qa import (
     build_context_block,
     build_user_prompt,
 )
-from app.providers.llm.base import LLMProvider
+from app.providers.llm.base import LLMProvider, extract_text_content
 from app.providers.llm.gemini import get_gemini_provider
 from app.providers.vector_store.chroma import RetrievalResult
 from app.schemas.query import QueryResponse, SourceReference
@@ -85,7 +85,9 @@ class RAGService:
 
             # 4. Call LLM
             llm = self._ensure_llm()
-            answer_text = llm.generate(system_prompt=SYSTEM_PROMPT, user_prompt=user_prompt)
+            answer_text = extract_text_content(
+                llm.generate(system_prompt=SYSTEM_PROMPT, user_prompt=user_prompt)
+            )
 
             # 5. Build source references, sorted by score descending
             sources = [

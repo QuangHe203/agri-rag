@@ -138,6 +138,25 @@ python scripts/ingest_documents.py doc1.pdf doc2.pdf
 
 ---
 
+## So sánh LLM thuần và RAG
+
+Chuẩn bị `GEMINI_API_KEY` trong `.env`, index tài liệu và điền câu hỏi cùng
+`ground_truth` vào `eval/dataset.json`, sau đó chạy từ thư mục gốc:
+
+```bash
+python -m eval.compare_llm_rag
+# Chạy thử một vài câu trước
+python -m eval.compare_llm_rag --limit 2 --top-k 5
+```
+
+Mỗi câu được trả lời một lần bằng LLM không có ngữ cảnh, một lần bằng RAG, rồi
+Gemini so sánh hai câu với đáp án chuẩn và chọn LLM, RAG hoặc hòa. Báo cáo từng
+câu và tổng số lượt thắng được lưu thành CSV/JSON trong `eval/results/`.
+Lệnh này gọi Gemini khoảng 3 lần cho mỗi câu và dùng quota API. Đây là đánh giá
+nhanh; nên dùng bộ câu hỏi/đáp án chuẩn phù hợp với tài liệu đã index.
+
+---
+
 ## Re-index khi đổi embedding model
 
 Nếu bạn thay đổi `EMBEDDING_MODEL` trong `.env`, toàn bộ tài liệu phải được index lại:

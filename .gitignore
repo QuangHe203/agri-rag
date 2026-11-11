@@ -38,3 +38,9 @@ Thumbs.db
 
 # ── HuggingFace cache (can be large) ─────────────────────────────────────────
 .cache/
+
+# Database
+*.db
+
+# Image
+*.png

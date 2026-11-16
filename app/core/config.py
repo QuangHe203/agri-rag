@@ -27,7 +27,6 @@ class Settings(BaseSettings):
     # Embedding
     EMBEDDING_MODEL: str = "AITeamVN/Vietnamese_Embedding"
     EMBEDDING_DEVICE: str = "cpu"
-    EMBEDDING_DIMENSION: int = 1024
 
     # Chunking
     CHUNK_SIZE: int = 800

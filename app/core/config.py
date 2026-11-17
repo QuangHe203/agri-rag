@@ -61,9 +61,9 @@ class Settings(BaseSettings):
     # LLM
     LLM_PROVIDER: str = "gemini"
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-flash-latest"
+    GEMINI_MODEL: str = "gemini-3.8-flash"
     LLM_TEMPERATURE: float = 0.1
-    GEMINI_TIMEOUT_SECONDS: float = Field(default=60.0, gt=0)
+    GEMINI_TIMEOUT_SECONDS: float = Field(default=120.0, gt=0)
     GEMINI_MAX_RETRIES: int = Field(default=1, ge=0)
 
     # Query execution

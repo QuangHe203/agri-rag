@@ -27,6 +27,14 @@ def setup_logging(level: str = "INFO") -> None:
     handler.setFormatter(logging.Formatter(fmt))
     handler.addFilter(RequestIdFilter())
 
+    # Force UTF-8 output on Windows so Vietnamese text is emitted without
+    # crashing the process when the console encoding cannot represent it.
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+
     root = logging.getLogger()
     root.setLevel(getattr(logging, level.upper(), logging.INFO))
     root.handlers.clear()

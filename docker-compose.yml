@@ -8,7 +8,7 @@ services:
     environment:
       - APP_ENV=production
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-flash-latest}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.8-flash}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-AITeamVN/Vietnamese_Embedding}
       - EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-cpu}
       - CHUNK_SIZE=${CHUNK_SIZE:-800}

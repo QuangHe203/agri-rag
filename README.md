@@ -120,7 +120,7 @@ Response mẫu:
       "excerpt": "Để phòng bệnh đạo ôn..."
     }
   ],
-  "model": "gemini-flash-latest"
+  "model": "gemini-3.8-flash"
 }
 ```
 

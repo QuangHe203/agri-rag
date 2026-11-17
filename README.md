@@ -102,7 +102,7 @@ Chờ đến khi status là `indexed` trước khi đặt câu hỏi.
 ```bash
 curl -X POST http://localhost:8000/api/v1/query \
   -H "Content-Type: application/json" \
-  -d '{"question": "Làm thế nào để phòng bệnh đạo ôn trên cây lúa?", "top_k": 5}'
+  -d '{"question": "Làm thế nào để phòng bệnh đạo ôn trên cây lúa?"}'
 ```
 
 Response mẫu:

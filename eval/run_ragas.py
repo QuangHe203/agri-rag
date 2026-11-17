@@ -89,7 +89,7 @@ def collect_predictions(samples: List[Dict], top_k: int) -> List[Dict]:
                 "user_input": question,
                 "response": response.answer,
                 "retrieved_contexts": contexts,
-                "reference": s.get("ground_truth", ""),
+                "reference": s.get("ground_truth") or s.get("reference_answer", ""),
             }
         )
     return rows

@@ -9,7 +9,6 @@ from app.core.config import get_settings
 
 class QueryRequest(BaseModel):
     question: str = Field(..., description="Câu hỏi tiếng Việt về khuyến nông")
-    top_k: int = Field(default=5, ge=1, le=10, description="Số chunk truy xuất (1-10)")
 
     @field_validator("question")
     @classmethod

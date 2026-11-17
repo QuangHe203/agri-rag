@@ -36,7 +36,7 @@ async def query(request: QueryRequest) -> EnrichedQueryResponse:
     Nhận câu hỏi tiếng Việt, truy xuất tài liệu liên quan và sinh câu trả lời.
 
     - `question`: câu hỏi tiếng Việt (bắt buộc).
-    - `top_k`: số chunk cần truy xuất (1–10, mặc định 5).
+    Số chunk truy xuất được cấu hình nội bộ, mặc định là 5.
 
     The response is a superset of the previous ``QueryResponse``: all existing
     fields are unchanged.  The new ``images`` field (default ``[]``) carries
@@ -44,9 +44,8 @@ async def query(request: QueryRequest) -> EnrichedQueryResponse:
     the answer.  Image retrieval failures never affect the answer or sources.
     """
     logger.info(
-        "Query received: question_len=%d top_k=%d",
+        "Query received: question_len=%d",
         len(request.question),
-        request.top_k,
     )
     request_start = perf_counter()
     queue_wait = 0.0
@@ -56,7 +55,7 @@ async def query(request: QueryRequest) -> EnrichedQueryResponse:
             processing_start = perf_counter()
             queue_wait = processing_start - request_start
             response = await run_in_threadpool(
-                _answer_query, request.question, request.top_k
+                _answer_query, request.question
             )
             outcome = "success"
             return response
@@ -72,7 +71,10 @@ async def query(request: QueryRequest) -> EnrichedQueryResponse:
         )
 
 
-def _answer_query(question: str, top_k: int) -> EnrichedQueryResponse:
+def _answer_query(question: str) -> EnrichedQueryResponse:
     rag = _get_rag_service()
-    rag_response = rag.answer(question=question, top_k=top_k)
+    rag_response = rag.answer(
+        question=question,
+        top_k=get_settings().DEFAULT_TOP_K,
+    )
     return enrich_response(rag_response)
